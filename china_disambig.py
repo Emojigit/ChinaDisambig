@@ -93,7 +93,12 @@ def check_page_name(year: int, S: requests.Session) -> list[str]:
         if DISAMBIG_REGEX.search(content):
             print("Disambiguation found in " + page["title"] + "\n")
             return []
-        page_titles.append(page["title"])
+
+        if REDIRECT_REGEX.match(content):
+            page_titles.append(page["title"])
+        else:
+            print(page["title"] +
+                  " is not disambiguation, pease perform manual check.")
     return page_titles
 
 
