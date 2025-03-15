@@ -2,7 +2,9 @@
 
 import re
 from time import sleep
+from os import getenv
 import requests
+from dotenv import load_dotenv
 
 API_URL = "https://zh.wikipedia.org/w/api.php"
 
@@ -14,6 +16,10 @@ DISAMBIG_REGEX = re.compile(
     r"{{(([Tt]([Ee][Mm][Pp][Ll][Aa][Tt][Ee])?|模板):)?(消歧[義义]|分歧義|[Dd]ab|分歧页?|[Dd]isamb(ig(uous)?|uation page)?|[Aa]imai)\|?.*?}}",
     flags=0
 )
+
+LOG_LINE_HEADER_FORMAT = "\n* {reason} ~~~~~\n"
+LOG_LINE_ENTRY_FORMAT = \
+    "** [[{title}]]的修訂版本{revid}（''{summary}''）（[[Special:permalink/{revid}|查看]]<nowiki>|</nowiki>[[Special:diff/{revid}|差異]]）\n"
 
 HANT_TITLE_FORMAT = r"{year}年中國"
 HANS_TITLE_FORMAT = r"{year}年中国"
@@ -91,14 +97,19 @@ def check_page_name(year: int, S: requests.Session) -> list[str]:
         print("Page " + page["title"] + " has content: " + content)
 
         if DISAMBIG_REGEX.search(content):
-            print("Disambiguation found in " + page["title"] + "\n")
+            print("Disambiguation found in " + page["title"])
             return []
 
         if REDIRECT_REGEX.match(content):
+            print("Overriding redirect page " + page["title"])
             page_titles.append(page["title"])
         else:
-            print(page["title"] +
-                  " is not disambiguation, pease perform manual check.")
+            print(page["title"] + " is not a redirect nor a disambig")
+            return []
+
+    # If we reached here with empty page titles, no pages were created, return HANT
+    if len(page_titles) == 0:
+        return [HANT_TITLE]
     return page_titles
 
 
@@ -124,10 +135,41 @@ def edit_page(title: str, content: str, summary: str, S: requests.Session):
         "bot": True,
     }
 
+    R = S.post(url=API_URL, data=API_PARAMS)
+    return R.json()
+
+
+def log_edit(reason: str, log_entries: str, S: requests.Session):
+    TOKEN_PARAMS = {
+        "action": "query",
+        "meta": "tokens",
+        "format": "json"
+    }
+
+    R = S.get(url=API_URL, params=TOKEN_PARAMS)
+    DATA = R.json()
+    CSRF_TOKEN = DATA['query']['tokens']['csrftoken']
+
+    content = LOG_LINE_HEADER_FORMAT.format(reason=reason)
+    for (title, summary, revid) in log_entries:
+        content += LOG_LINE_ENTRY_FORMAT.format(
+            title=title, summary=summary, revid=revid)
+
+    API_PARAMS = {
+        "action": "edit",
+        "title": getenv("WIKI_LOG_PAGE"),
+        "token": CSRF_TOKEN,
+        "format": "json",
+        "appendtext": content,
+        "summary": "Log // github.com/Emojigit/ChinaDisambig",
+        "notminor": True,
+        "bot": True,
+    }
+
     S.post(url=API_URL, data=API_PARAMS)
 
 
-def do_edit_queue(pending_edits: tuple[tuple[str, str, str]], S: requests.Session) -> bool:
+def do_edit_queue(pending_edits: tuple[tuple[str, str, str]], reason: str, S: requests.Session) -> bool:
     """Allow user to review edits before proceeding
 
     Parameters
@@ -149,9 +191,15 @@ def do_edit_queue(pending_edits: tuple[tuple[str, str, str]], S: requests.Sessio
         if user_input == "k":
             return False
         if user_input == "":
+            log_entries = []
             for i, (title, content, summary) in enumerate(pending_edits):
                 print("Doing edit #" + str(i))
-                edit_page(title, content, summary, S)
+                DATA = edit_page(title, content, summary, S)
+                print(DATA)
+                log_entries.append([
+                    title, summary, DATA["edit"]["newrevid"]
+                ])
+            log_edit(reason, log_entries, S)
             return True
 
         try:
@@ -169,6 +217,7 @@ def work_on_page(year: int, S: requests.Session):
 
     page_names = check_page_name(year, S)
     if len(page_names) == 0:
+        print()
         sleep(3)  # Let's sleep a while
         return
 
@@ -185,13 +234,15 @@ def work_on_page(year: int, S: requests.Session):
                 "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（繁簡重定向）：見[[User:1F616EMO/中國消歧義]]。"
             ))
 
-    if do_edit_queue(edit_queue, S):
+    reason = "半自動建立[[Category:兩岸分治後各年中國消歧義|]]：" + str(year) + "年"
+    if do_edit_queue(edit_queue, reason, S):
         print("Succeed\n")
     else:
         print("Skipped\n")
 
 
 if __name__ == "__main__":
+    load_dotenv()
     S = requests.Session()
 
     LOGIN_TOKEN_PARAMS = {
@@ -207,15 +258,15 @@ if __name__ == "__main__":
 
     LOGIN_PARAMS = {
         'action': "login",
-        'lgname': input("Username: "),
-        'lgpassword': input("Botpassword: "),
+        'lgname': getenv('WIKI_USERNAME'),
+        'lgpassword': getenv('WIKI_BOTPASSWORD'),
         'lgtoken': LOGIN_TOKEN,
         'format': "json"
     }
 
-    LOWER_BOUND = int(input("Lower bound (year): "))
-    UPPER_BOUND = int(input("Upper bound (year): "))
-    assert LOWER_BOUND < UPPER_BOUND
+    LOWER_BOUND = int(getenv('EDIT_LOWER_BOUND'))
+    UPPER_BOUND = int(getenv('EDIT_UPPER_BOUND'))
+    assert LOWER_BOUND <= UPPER_BOUND
 
     R = S.post(url=API_URL, data=LOGIN_PARAMS)
     DATA = R.json()
