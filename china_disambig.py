@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+from time import sleep
 import requests
 
 API_URL = "https://zh.wikipedia.org/w/api.php"
@@ -10,7 +11,9 @@ REDIRECT_REGEX = re.compile(
 REDIRECT_FORMAT = r"#REDIRECT [[{target}]]"
 
 DISAMBIG_REGEX = re.compile(
-    r"{{(([Tt]([Ee][Mm][Pp][Ll][Aa][Tt][Ee])?|模板):)?(消歧[義义]|分歧義|[Dd]ab|分歧页?|[Dd]isamb(ig(uous)?|uation page)?|[Aa]imai)\|?.*?}}")
+    r"{{(([Tt]([Ee][Mm][Pp][Ll][Aa][Tt][Ee])?|模板):)?(消歧[義义]|分歧義|[Dd]ab|分歧页?|[Dd]isamb(ig(uous)?|uation page)?|[Aa]imai)\|?.*?}}",
+    flags=0
+)
 
 HANT_TITLE_FORMAT = r"{year}年中國"
 HANS_TITLE_FORMAT = r"{year}年中国"
@@ -60,7 +63,7 @@ def get_template(year: int) -> str:
     return POST_ALL_HANDOVER_FORMAT
 
 
-def disambig_exists(year: int, S: requests.Session) -> bool:
+def check_page_name(year: int, S: requests.Session) -> list[str]:
     HANT_TITLE = HANT_TITLE_FORMAT.format(year=year)
     HANS_TITLE = HANS_TITLE_FORMAT.format(year=year)
 
@@ -78,6 +81,7 @@ def disambig_exists(year: int, S: requests.Session) -> bool:
     DATA = R.json()
 
     PAGES = DATA["query"]["pages"]
+    page_titles = []
 
     for page in PAGES:
         if "missing" in page:
@@ -86,9 +90,11 @@ def disambig_exists(year: int, S: requests.Session) -> bool:
         content = page["revisions"][0]["slots"]["main"]["content"]
         print("Page " + page["title"] + " has content: " + content)
 
-        if DISAMBIG_REGEX.match(content):
-            return True
-    return False
+        if DISAMBIG_REGEX.search(content):
+            print("Disambiguation found in " + page["title"])
+            return []
+        page_titles.append(page["title"])
+    return page_titles
 
 
 def edit_page(title: str, content: str, summary: str, S: requests.Session):
@@ -154,22 +160,23 @@ def do_edit_queue(pending_edits: tuple[tuple[str, str, str]], S: requests.Sessio
 def work_on_page(year: int, S: requests.Session):
     print("Working on year " + str(year))
 
-    if disambig_exists(year, S):
-        print("Disambiguation exists, skipping.\n")
+    page_names = check_page_name(year, S)
+    if len(page_names) == 0:
+        sleep(3)  # Let's sleep a while
         return
 
-    HANT_TITLE = HANT_TITLE_FORMAT.format(year=year)  # Main page
-    HANS_TITLE = HANS_TITLE_FORMAT.format(year=year)  # Redirect page
-
-    page_content = get_template(year).format(year=year)
-    redirect_content = REDIRECT_FORMAT.format(target=HANT_TITLE)
-
-    edit_queue = [
-        [HANT_TITLE, page_content,
-            "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（主頁面）：見[[User:1F616EMO/中國消歧義]]。"],
-        [HANS_TITLE, redirect_content,
-            "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（繁簡重定向）：見[[User:1F616EMO/中國消歧義]]。"],
-    ]
+    edit_queue = []
+    for i, title in enumerate(page_names):
+        if i == 0:
+            edit_queue.append((
+                title, get_template(year).format(year=year),
+                "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（主頁面）：見[[User:1F616EMO/中國消歧義]]。"
+            ))
+        else:
+            edit_queue.append((
+                title, REDIRECT_FORMAT.format(target=edit_queue[0]),
+                "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（繁簡重定向）：見[[User:1F616EMO/中國消歧義]]。"
+            ))
 
     if do_edit_queue(edit_queue, S):
         print("Succeed\n")
