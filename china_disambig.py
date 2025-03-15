@@ -25,7 +25,7 @@ PRE_HANDOVER_FORMAT = r"""按[[de facto|實際上]]的[[海峽兩岸關係|兩�
 * [[{year}年香港]]，{year}年英屬香港的重大事件。
 * [[{year}年澳門]]，{year}年葡屬澳門的重大事件。
 
-{{disambig|Cat=兩岸分治後各年中國消歧義}}"""
+{{{{disambig|Cat=兩岸分治後各年中國消歧義}}}}"""
 
 POST_HK_HANDOVER_FORMAT = r"""按[[de facto|實際上]]的[[海峽兩岸關係|兩岸政治情況]]，'''{year}年中國'''的重大事件分述於以下條目：
 
@@ -37,7 +37,7 @@ POST_HK_HANDOVER_FORMAT = r"""按[[de facto|實際上]]的[[海峽兩岸關係|�
 == 參見 ==
 * [[{year}年澳門]]，{year}年葡屬澳門的重大事件。
 
-{{disambig|Cat=兩岸分治後各年中國消歧義}}"""
+{{{{disambig|Cat=兩岸分治後各年中國消歧義}}}}"""
 
 POST_ALL_HANDOVER_FORMAT = r"""按[[de facto|實際上]]的[[海峽兩岸關係|兩岸政治情況]]，'''{year}年中國'''的重大事件分述於以下條目：
 
@@ -47,7 +47,7 @@ POST_ALL_HANDOVER_FORMAT = r"""按[[de facto|實際上]]的[[海峽兩岸關係|
 ** [[{year}年澳門]]，{year}年澳門特別行政區的重大事件；
 * {year}年中華民國，即[[{year}年臺灣]]，{year}年臺灣的重大事件。
 
-{{disambig|Cat=兩岸分治後各年中國消歧義}}"""
+{{{{disambig|Cat=兩岸分治後各年中國消歧義}}}}"""
 
 # Don't have to worry about 1997 and 1999 cuz already created
 
