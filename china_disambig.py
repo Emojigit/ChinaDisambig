@@ -91,7 +91,7 @@ def check_page_name(year: int, S: requests.Session) -> list[str]:
         print("Page " + page["title"] + " has content: " + content)
 
         if DISAMBIG_REGEX.search(content):
-            print("Disambiguation found in " + page["title"])
+            print("Disambiguation found in " + page["title"] + "\n")
             return []
         page_titles.append(page["title"])
     return page_titles
@@ -115,6 +115,8 @@ def edit_page(title: str, content: str, summary: str, S: requests.Session):
         "format": "json",
         "text": content,
         "summary": summary + " // github.com/Emojigit/ChinaDisambig",
+        "notminor": True,
+        "bot": True,
     }
 
     S.post(url=API_URL, data=API_PARAMS)
@@ -174,7 +176,7 @@ def work_on_page(year: int, S: requests.Session):
             ))
         else:
             edit_queue.append((
-                title, REDIRECT_FORMAT.format(target=edit_queue[0]),
+                title, REDIRECT_FORMAT.format(target=page_names[0]),
                 "半自動建立[[Category:兩岸分治後各年中國消歧義|]]（繁簡重定向）：見[[User:1F616EMO/中國消歧義]]。"
             ))
 
